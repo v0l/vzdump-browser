@@ -69,6 +69,8 @@ jobs:
   create-release:
     needs: [build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -80,5 +82,3 @@ jobs:
             vzdump-browser-linux/vzdump-browser-linux
             vzdump-browser-macos/vzdump-browser-macos
             vzdump-browser-windows/vzdump-browser-windows.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
