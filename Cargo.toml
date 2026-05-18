@@ -15,4 +15,4 @@ sha2 = "0.10"
 hex = "0.4"
 
 [patch.crates-io]
-ext4_rs = { git = "https://github.com/v0l/ext4_rs.git" }
+ext4_rs = { git = "https://github.com/v0l/ext4_rs.git", branch = "master-fix" }
