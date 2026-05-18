@@ -41,8 +41,42 @@ cargo build --release
 
 ## Usage
 
+### Interactive Mode
+
 ```bash
 ./target/release/vzdump-browser -p ~/backups/
+```
+
+### CLI Commands
+
+**Dump VMA contents** (header, partitions, filesystem trees):
+```bash
+./target/release/vzdump-browser dump /path/to/backup.vma --depth 4 --max-entries 200
+```
+
+**List directory contents**:
+```bash
+./target/release/vzdump-browser list --vma /path/to/backup.vma --vma-device 1 --partition 0 --path /etc
+```
+
+**Extract a file**:
+```bash
+./target/release/vzdump-browser extract --vma /path/to/backup.vma --vma-device 1 --partition 0 --path /etc/hostname --output /tmp/hostname
+```
+
+**Compute SHA256 hash** (without extracting):
+```bash
+./target/release/vzdump-browser hash --vma /path/to/backup.vma --vma-device 1 --partition 0 --path /etc/hostname
+```
+
+**Hex dump a file**:
+```bash
+./target/release/vzdump-browser hex --vma /path/to/backup.vma --vma-device 1 --partition 0 --path /boot/grub/grub.cfg --max-bytes 256
+```
+
+**Show VMA info**:
+```bash
+./target/release/vzdump-browser info --vma /path/to/backup.vma
 ```
 
 ### Controls

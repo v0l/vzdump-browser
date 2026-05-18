@@ -13,6 +13,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use sha2::{Digest, Sha256};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -123,6 +124,25 @@ enum Command {
         #[arg(short, long)]
         vma: PathBuf,
     },
+
+    /// Compute SHA256 hash of a file without extracting
+    Hash {
+        /// Path to VMA file
+        #[arg(short, long)]
+        vma: PathBuf,
+
+        /// VMA device number (0, 1, etc.)
+        #[arg(long, default_value = "0")]
+        vma_device: usize,
+
+        /// Partition number (0, 1, 2, etc.)
+        #[arg(long, default_value = "0")]
+        partition: usize,
+
+        /// Path to file within filesystem
+        #[arg(long)]
+        path: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -138,6 +158,7 @@ fn main() -> Result<()> {
         Some(Command::Extract { vma, vma_device, partition, path, output }) => run_extract(&vma, vma_device, partition, &path, output.as_ref()),
         Some(Command::Hex { vma, vma_device, partition, path, max_bytes }) => run_hex(&vma, vma_device, partition, &path, max_bytes),
         Some(Command::Info { vma }) => run_info(&vma),
+        Some(Command::Hash { vma, vma_device, partition, path }) => run_hash(&vma, vma_device, partition, &path),
         None => run_tui(cli.path),
     }
 }
@@ -596,4 +617,40 @@ fn run_info(vma_path: &PathBuf) -> Result<()> {
         println!("  {}: {} ({})", i, dev.name, app::format_size(dev.size));
     }
     Ok(())
+}
+
+/// Compute SHA256 hash of a file without extracting
+fn run_hash(vma_path: &PathBuf, device_idx: usize, partition_idx: usize, path: &str) -> Result<()> {
+    let (archive, mut dr) = open_vma_device(vma_path, device_idx)?;
+    let partitions = get_partition_data(&archive, device_idx)?;
+    
+    if partition_idx >= partitions.len() {
+        return Err(anyhow::anyhow!("Partition {} not found", partition_idx));
+    }
+    
+    let partition = &partitions[partition_idx];
+    eprintln!("Computing hash for {}...", path);
+    
+    // Create a partition reader
+    let partition_reader = PartitionReader::new(dr, partition.byte_offset, partition.byte_length);
+    
+    // Try ext4 first
+    if let Ok(mut fs) = Ext4Fs::open(partition_reader) {
+        let ino = fs.lookup_inode(path)?;
+        if ino == 0 {
+            return Err(anyhow::anyhow!("File not found: {}", path));
+        }
+        
+        let data = fs.read_file(ino)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&data);
+        let hash_hex = hex::encode(hasher.finalize());
+        
+        println!("File: {}", path);
+        println!("Size: {} bytes", data.len());
+        println!("SHA256: {}", hash_hex);
+        return Ok(());
+    }
+    
+    Err(anyhow::anyhow!("Unsupported filesystem or path not found"))
 }
