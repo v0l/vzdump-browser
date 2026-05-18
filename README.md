@@ -6,25 +6,24 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)](https://www.rust-lang.org)
-[![crates.io](https://img.shields.io/crates/v/vzdump-browser.svg)](https://crates.io/crates/vzdump-browser)
 
 </div>
 
-TUI application for browsing Proxmox VZDump backups (`.vma`, `.vma.zst`, `.vma.xz`).
+TUI application for browsing Proxmox VZDump backups (`.vma` files only - **uncompressed**).
 
-Stream-decompresss huge VMA archives to disk, builds a cluster index for random-access reads, then lets you browse partition tables and hex dump individual sectors — all without loading the entire 200GB+ decompressed archive into RAM.
+Stream-reads VMA archives with a cluster index for random-access reads, letting you browse partition tables, filesystems (ext4, FAT), and hex dump individual sectors — all without loading the entire archive into RAM.
 
-Stream-decompresses huge VMA archives to disk, builds a cluster index for random-access reads, then lets you browse partition tables and hex dump individual sectors — all without loading the entire 200GB+ decompressed archive into RAM.
+**Note:** Compressed backups (`.vma.zst`, `.vma.xz`) must be decompressed first before using this tool.
 
 ## Features
 
 - **File browser** — filter to only show directories and VMA backup files
 - **VMA parser** — matches proxmox-vma header layout: devices, config files, timestamps, blob buffer
-- **Stream decompression** — decompress to temp file on disk (handles 124GB compressed / 200GB+ decompressed)
-- **Cluster index** — maps every extent cluster to a byte offset in the temp file for O(1) random access
-- **Partition table** — MBR parsing, auto-detects filesystem type from superblock signatures
-- **Filesystem detection** — ext2/3/4, XFS, btrfs, NTFS, LVM2
+- **Cluster index** — maps every extent cluster to a byte offset for O(1) random access
+- **Partition table** — MBR/GPT parsing, auto-detects filesystem type from superblock signatures
+- **Filesystem detection** — ext2/3/4, XFS, btrfs, NTFS, LVM2, FAT
 - **Hex viewer** — scrollable hex dump with ASCII sidebar
+- **File extraction** — extract files from ext4 filesystems to disk
 
 ## Installation
 
@@ -38,6 +37,7 @@ cargo build --release
 
 - Rust 1.70+
 - A TTY-compatible terminal (tmux, screen, or native terminal)
+- **Uncompressed `.vma` files only** (decompress `.vma.zst` with `zstd -d` first)
 
 ## Usage
 
@@ -49,7 +49,6 @@ cargo build --release
 
 #### File List
 
-### File List
 | Key | Action |
 |-----|--------|
 | `j`/`k` or `↑`/`↓` | Navigate |
@@ -80,31 +79,15 @@ cargo build --release
 ## Architecture
 
 ```
-VMA file (.zst)
-  │ zstd stream decompress ──► temp file on disk
-  │ scan VMAE extent headers ──► cluster index (dev_id → [(cluster_num, file_offset)])
+Uncompressed VMA file (.vma)
+  │ parse header → build cluster index (dev_id → [(cluster_num, file_offset)])
   │
   ▼
-on-demand reads ──► read_device_sectors(dev, start, count)
+on-demand reads ──► VmaDeviceReader (File + cluster index lookup)
                      │ binary search cluster index
-                     │ seek + read from temp file
+                     │ seek + read from .vma file directly
                      │
-                     ▼ partition table + hex view
-```
-
-## Architecture
-
-```
-VMA file (.zst)
-  │ zstd stream decompress ──► temp file on disk
-  │ scan VMAE extent headers ──► cluster index (dev_id → [(cluster_num, file_offset)])
-  │
-  ▼
-on-demand reads ──► read_device_sectors(dev, start, count)
-                     │ binary search cluster index
-                     │ seek + read from temp file
-                     │
-                     ▼ partition table + hex view
+                     ▼ partition table + filesystem parsing + hex view
 ```
 
 ## Contributing
